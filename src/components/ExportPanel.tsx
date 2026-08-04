@@ -61,14 +61,14 @@ export function ExportPanel() {
       <div className="mt-3 text-sm">
         {shortage > 0 ? (
           <p className="text-amber-700" data-testid="shortage-warning">
-            ⚠️ あと {shortage} 枚必要です(現在 {doneItems.length} 枚 / {count} 枚)
+            あと {shortage} 枚必要です(現在 {doneItems.length} 枚 / {count} 枚)
           </p>
         ) : doneItems.length > count ? (
           <p className="text-slate-500">
             {doneItems.length} 枚中、先頭の {count} 枚を書き出します
           </p>
         ) : (
-          <p className="text-emerald-700">✓ {count} 枚そろっています</p>
+          <p className="text-emerald-700">{count} 枚そろっています</p>
         )}
         {mainItem && (
           <p className="mt-1 text-slate-500">
@@ -93,7 +93,7 @@ export function ExportPanel() {
       {error && <p className="mt-2 text-sm text-red-600">エラー: {error}</p>}
       {doneMsg && (
         <p className="mt-2 text-sm text-emerald-700" data-testid="export-done">
-          ✓ {doneMsg}
+          {doneMsg}
         </p>
       )}
       <p className="mt-3 text-xs text-slate-400">

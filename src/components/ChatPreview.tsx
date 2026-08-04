@@ -16,7 +16,7 @@ export function ChatPreview() {
           className="rounded-full border border-slate-300 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100"
           onClick={() => setDark((d) => !d)}
         >
-          {dark ? '☀️ ライト背景' : '🌙 ダーク背景'}
+          {dark ? 'ライト背景で見る' : 'ダーク背景で見る'}
         </button>
       </div>
       <div
@@ -25,7 +25,7 @@ export function ChatPreview() {
         {shown.map((item, i) => (
           <div key={item.id} className={`mb-3 flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
             <img
-              src={item.cutoutUrl}
+              src={item.renderedUrl ?? item.cutoutUrl}
               alt=""
               className="h-28 w-auto max-w-[45%] object-contain drop-shadow-sm"
             />

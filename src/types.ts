@@ -21,6 +21,18 @@ export interface TextItem {
   color: string
   /** 縁取り色。null で縁取りなし */
   strokeColor: string | null
+  /** フォント ID(src/lib/compose.ts の FONTS を参照) */
+  fontId: string
+}
+
+/** 被写体の配置調整(自動フィットに対する倍率とオフセット) */
+export interface StampTransform {
+  /** 拡大率。1 = 自動フィット */
+  scale: number
+  /** 出力キャンバス幅に対する横オフセット (-0.5..0.5) */
+  x: number
+  /** 出力キャンバス高さに対する縦オフセット (-0.5..0.5) */
+  y: number
 }
 
 export interface StampEdits {
@@ -29,6 +41,8 @@ export interface StampEdits {
   outline: boolean
   /** 白フチの太さ(出力 px) */
   outlineWidth: number
+  /** 被写体の配置調整 */
+  transform: StampTransform
 }
 
 export type StampStatus = 'pending' | 'processing' | 'done' | 'error'
@@ -44,11 +58,16 @@ export interface StampItem {
   maskUrl?: string
   /** 切り抜き結果 (original × mask) の object URL */
   cutoutUrl?: string
+  /** 編集(配置・白フチ・テキスト)を反映した最終レンダリングの object URL(一覧・プレビュー表示用) */
+  renderedUrl?: string
   edits: StampEdits
 }
+
+export const defaultTransform = (): StampTransform => ({ scale: 1, x: 0, y: 0 })
 
 export const defaultEdits = (): StampEdits => ({
   texts: [],
   outline: false,
   outlineWidth: 8,
+  transform: defaultTransform(),
 })

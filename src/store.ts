@@ -2,6 +2,13 @@ import { create } from 'zustand'
 import { defaultEdits, SPEC, type StampCount, type StampEdits, type StampItem } from './types'
 import { applyMask, blobToImage, canvasToBlob, createCanvas, ctx2d, extractMask, normalizeUpload, urlToImage } from './lib/imageUtils'
 import { removeBg } from './lib/removeBg'
+import { renderStamp } from './lib/compose'
+
+/** 一覧・プレビュー表示用の最終レンダリング画像を生成する */
+async function renderPreviewUrl(cutoutUrl: string, edits: StampEdits): Promise<string> {
+  const canvas = await renderStamp(cutoutUrl, edits)
+  return URL.createObjectURL(await canvasToBlob(canvas))
+}
 
 let seq = 0
 const newId = () => `stamp-${++seq}-${performance.now().toFixed(0)}`
@@ -49,10 +56,14 @@ export const useStore = create<StoreState>((set, get) => {
         ctx2d(cutout).drawImage(img, 0, 0, cutout.width, cutout.height)
         const mask = extractMask(cutout)
         const [cutoutPng, maskPng] = await Promise.all([canvasToBlob(cutout), canvasToBlob(mask)])
+        const cutoutUrl = URL.createObjectURL(cutoutPng)
+        const item = get().items.find((it) => it.id === id)
+        const renderedUrl = await renderPreviewUrl(cutoutUrl, item?.edits ?? defaultEdits())
         update(id, {
           status: 'done',
           originalUrl,
-          cutoutUrl: URL.createObjectURL(cutoutPng),
+          cutoutUrl,
+          renderedUrl,
           maskUrl: URL.createObjectURL(maskPng),
         })
         set((s) => ({ mainId: s.mainId ?? id }))
@@ -120,20 +131,19 @@ export const useStore = create<StoreState>((set, get) => {
     saveEdits: async (id, mask, edits) => {
       const item = get().items.find((it) => it.id === id)
       if (!item) return
+      let cutoutUrl = item.cutoutUrl
       if (mask && item.originalUrl) {
         const orig = await urlToImage(item.originalUrl)
         const cutout = applyMask(orig, mask)
         const [cutoutPng, maskPng] = await Promise.all([canvasToBlob(cutout), canvasToBlob(mask)])
         if (item.cutoutUrl) URL.revokeObjectURL(item.cutoutUrl)
         if (item.maskUrl) URL.revokeObjectURL(item.maskUrl)
-        update(id, {
-          cutoutUrl: URL.createObjectURL(cutoutPng),
-          maskUrl: URL.createObjectURL(maskPng),
-          edits,
-        })
-      } else {
-        update(id, { edits })
+        cutoutUrl = URL.createObjectURL(cutoutPng)
+        update(id, { cutoutUrl, maskUrl: URL.createObjectURL(maskPng) })
       }
+      if (item.renderedUrl) URL.revokeObjectURL(item.renderedUrl)
+      const renderedUrl = cutoutUrl ? await renderPreviewUrl(cutoutUrl, edits) : undefined
+      update(id, { edits, renderedUrl })
     },
 
     retryItem: (id) => {

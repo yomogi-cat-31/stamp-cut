@@ -13,7 +13,7 @@ export default function App() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-4xl px-4 py-4">
           <h1 className="text-xl font-black tracking-tight">
-            🐶 stamp-cut
+            stamp-cut
             <span className="ml-2 text-sm font-bold text-slate-400">
               写真から LINE スタンプ用アセットを作るツール
             </span>

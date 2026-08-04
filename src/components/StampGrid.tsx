@@ -22,7 +22,7 @@ function Card({ item, index }: { item: StampItem; index: number }) {
       <div className="checkerboard flex aspect-[370/320] items-center justify-center overflow-hidden rounded-lg">
         {item.status === 'done' && item.cutoutUrl ? (
           <img
-            src={item.cutoutUrl}
+            src={item.renderedUrl ?? item.cutoutUrl}
             alt={item.fileName}
             className="max-h-full max-w-full object-contain"
             style={{ padding: '4%' }}
@@ -85,7 +85,7 @@ function Card({ item, index }: { item: StampItem; index: number }) {
           onClick={() => removeItem(item.id)}
           title="削除"
         >
-          ✕
+          ×
         </button>
       </div>
     </div>
