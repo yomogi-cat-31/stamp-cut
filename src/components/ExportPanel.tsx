@@ -1,7 +1,12 @@
 import { useState } from 'react'
+import { Download, Loader2 } from 'lucide-react'
 import { useStore } from '../store'
 import { SPEC, type StampCount } from '../types'
 import { downloadBlob, exportZip } from '../lib/exportZip'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 export function ExportPanel() {
   const { items, count, setCount, mainId } = useStore()
@@ -23,9 +28,7 @@ export function ExportPanel() {
     setExporting(true)
     try {
       const targets = doneItems.slice(0, count)
-      const { blob, fileCount } = await exportZip(targets, mainItem, (d, t) =>
-        setProgress([d, t]),
-      )
+      const { blob, fileCount } = await exportZip(targets, mainItem, (d, t) => setProgress([d, t]))
       downloadBlob(blob, 'line-stamps.zip')
       setDoneMsg(
         `${fileCount} ファイル(スタンプ ${count} + main + tab)を line-stamps.zip として保存しました`,
@@ -39,68 +42,84 @@ export function ExportPanel() {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="export-panel">
-      <h2 className="font-bold text-slate-700">書き出し</h2>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-sm text-slate-600">スタンプ個数:</span>
-        {SPEC.counts.map((c) => (
-          <button
-            key={c}
-            className={`rounded-full px-3 py-1 text-sm font-bold transition-colors ${
-              count === c
-                ? 'bg-emerald-600 text-white'
-                : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
-            }`}
-            onClick={() => setCount(c as StampCount)}
+    <Card data-testid="export-panel">
+      <CardHeader>
+        <CardTitle>書き出し</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-muted-foreground text-sm">スタンプ個数:</span>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            value={String(count)}
+            onValueChange={(v) => v && setCount(Number(v) as StampCount)}
           >
-            {c}
-          </button>
-        ))}
-      </div>
+            {SPEC.counts.map((c) => (
+              <ToggleGroupItem
+                key={c}
+                value={String(c)}
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground px-4"
+              >
+                {c}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
 
-      <div className="mt-3 text-sm">
-        {shortage > 0 ? (
-          <p className="text-amber-700" data-testid="shortage-warning">
-            ⚠️ あと {shortage} 枚必要です(現在 {doneItems.length} 枚 / {count} 枚)
+        <div className="text-sm">
+          {shortage > 0 ? (
+            <p className="text-amber-700" data-testid="shortage-warning">
+              あと {shortage} 枚必要です(現在 {doneItems.length} 枚 / {count} 枚)
+            </p>
+          ) : doneItems.length > count ? (
+            <p className="text-muted-foreground">
+              {doneItems.length} 枚中、先頭の {count} 枚を書き出します
+            </p>
+          ) : (
+            <p className="text-primary">{count} 枚そろっています</p>
+          )}
+          {mainItem && (
+            <p className="text-muted-foreground mt-1">
+              メイン画像・タブ画像は「{mainItem.fileName}」から自動生成します
+            </p>
+          )}
+        </div>
+
+        {exporting && progress && <Progress value={(progress[0] / progress[1]) * 100} />}
+
+        <Button
+          data-testid="export-button"
+          size="lg"
+          className="w-full"
+          disabled={!canExport}
+          onClick={onExport}
+        >
+          {exporting ? (
+            <>
+              <Loader2 className="animate-spin" />
+              {progress ? `生成中… ${progress[0]}/${progress[1]}` : '生成中…'}
+            </>
+          ) : (
+            <>
+              <Download />
+              ZIP をダウンロード
+            </>
+          )}
+        </Button>
+
+        {error && <p className="text-destructive text-sm">エラー: {error}</p>}
+        {doneMsg && (
+          <p className="text-primary text-sm" data-testid="export-done">
+            {doneMsg}
           </p>
-        ) : doneItems.length > count ? (
-          <p className="text-slate-500">
-            {doneItems.length} 枚中、先頭の {count} 枚を書き出します
-          </p>
-        ) : (
-          <p className="text-emerald-700">✓ {count} 枚そろっています</p>
         )}
-        {mainItem && (
-          <p className="mt-1 text-slate-500">
-            メイン画像・タブ画像は「{mainItem.fileName}」から自動生成します
-          </p>
-        )}
-      </div>
-
-      <button
-        data-testid="export-button"
-        className="mt-4 w-full rounded-xl bg-emerald-600 py-3 font-bold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-300"
-        disabled={!canExport}
-        onClick={onExport}
-      >
-        {exporting
-          ? progress
-            ? `生成中… ${progress[0]}/${progress[1]}`
-            : '生成中…'
-          : 'ZIP をダウンロード'}
-      </button>
-
-      {error && <p className="mt-2 text-sm text-red-600">エラー: {error}</p>}
-      {doneMsg && (
-        <p className="mt-2 text-sm text-emerald-700" data-testid="export-done">
-          ✓ {doneMsg}
+        <p className="text-muted-foreground text-xs">
+          出力仕様: スタンプ {SPEC.stamp.maxW}×{SPEC.stamp.maxH}px 以内(偶数px・透過PNG・1MB以下)/ main{' '}
+          {SPEC.main.w}×{SPEC.main.h} / tab {SPEC.tab.w}×{SPEC.tab.h}。
+          申請前に第三者の写り込み・ロゴ等が含まれていないか確認してください。
         </p>
-      )}
-      <p className="mt-3 text-xs text-slate-400">
-        出力仕様: スタンプ {SPEC.stamp.maxW}×{SPEC.stamp.maxH}px 以内(偶数px・透過PNG・1MB以下)/ main{' '}
-        {SPEC.main.w}×{SPEC.main.h} / tab {SPEC.tab.w}×{SPEC.tab.h}。
-        申請前に第三者の写り込み・ロゴ等が含まれていないか確認してください。
-      </p>
-    </div>
+      </CardContent>
+    </Card>
   )
 }

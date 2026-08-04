@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
+import { ImageUp } from 'lucide-react'
 import { useStore } from '../store'
 import { preloadModel } from '../lib/removeBg'
+import { cn } from '@/lib/utils'
 
 export function UploadZone() {
   const addFiles = useStore((s) => s.addFiles)
@@ -18,9 +20,10 @@ export function UploadZone() {
   return (
     <div
       data-testid="upload-zone"
-      className={`rounded-2xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer select-none ${
-        dragging ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:bg-slate-50'
-      }`}
+      className={cn(
+        'flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors select-none',
+        dragging ? 'border-primary bg-primary/5' : 'border-border bg-card hover:bg-accent/50',
+      )}
       onClick={() => inputRef.current?.click()}
       onDragOver={(e) => {
         e.preventDefault()
@@ -37,8 +40,9 @@ export function UploadZone() {
         void preloadModel().catch(() => {})
       }}
     >
-      <p className="text-lg font-bold text-slate-700">写真をドラッグ&ドロップ / タップして選択</p>
-      <p className="mt-2 text-sm text-slate-500">
+      <ImageUp className="text-muted-foreground size-8" />
+      <p className="text-lg font-semibold">写真をドラッグ&ドロップ / タップして選択</p>
+      <p className="text-muted-foreground text-sm">
         JPEG・PNG・WebP・HEIC 対応 / 複数枚OK / 画像は端末の外に送信されません
       </p>
       <input

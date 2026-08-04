@@ -1,8 +1,36 @@
-import { SPEC, type StampEdits } from '../types'
+import { defaultTransform, SPEC, type StampEdits } from '../types'
 import { alphaBBox, canvasToBlob, createCanvas, ctx2d, urlToImage } from './imageUtils'
 
-export const TEXT_FONT_FAMILY =
-  "'Hiragino Maru Gothic ProN', 'BIZ UDPGothic', 'Noto Sans JP', sans-serif"
+/** テキストに使えるフォント(OS 標準フォントのスタック) */
+export const FONTS = [
+  {
+    id: 'maru',
+    label: '丸ゴシック',
+    stack: "'Hiragino Maru Gothic ProN', 'BIZ UDPGothic', 'Meiryo', sans-serif",
+  },
+  {
+    id: 'gothic',
+    label: 'ゴシック',
+    stack: "'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Meiryo', sans-serif",
+  },
+  {
+    id: 'mincho',
+    label: '明朝',
+    stack: "'Hiragino Mincho ProN', 'Noto Serif JP', 'MS PMincho', serif",
+  },
+  {
+    id: 'pop',
+    label: 'ポップ',
+    stack: "'Mochiy Pop One', 'Comic Sans MS', 'Chalkboard SE', cursive",
+  },
+] as const
+
+export type FontId = (typeof FONTS)[number]['id']
+
+export const DEFAULT_FONT_ID: FontId = 'maru'
+
+export const fontStack = (fontId: string | undefined): string =>
+  (FONTS.find((f) => f.id === fontId) ?? FONTS[0]).stack
 
 /** 偶数 px に切り上げる */
 const even = (n: number) => {
@@ -44,7 +72,7 @@ function drawTexts(
   for (const t of edits.texts) {
     if (!t.text) continue
     const px = Math.max(6, t.size * h)
-    ctx.font = `bold ${px}px ${TEXT_FONT_FAMILY}`
+    ctx.font = `bold ${px}px ${fontStack(t.fontId)}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     const x = t.x * w
@@ -104,12 +132,15 @@ export async function renderStamp(
     outH = Math.min(SPEC.stamp.maxH, even(bbox.h * scale + (margin + outlinePad) * 2))
   }
 
+  // ユーザーの配置調整(自動フィットに対する倍率・オフセット)。
+  // 拡大やオフセットで枠からはみ出た部分はキャンバス境界で切れる。
+  const t = edits.transform ?? defaultTransform()
   const canvas = createCanvas(outW, outH)
   const ctx = ctx2d(canvas)
-  const dw = bbox.w * scale
-  const dh = bbox.h * scale
-  const dx = (outW - dw) / 2
-  const dy = (outH - dh) / 2
+  const dw = bbox.w * scale * t.scale
+  const dh = bbox.h * scale * t.scale
+  const dx = (outW - dw) / 2 + t.x * outW
+  const dy = (outH - dh) / 2 + t.y * outH
   if (edits.outline) {
     const ow = opts.fixed
       ? Math.max(1, edits.outlineWidth * (outH / SPEC.stamp.maxH))
