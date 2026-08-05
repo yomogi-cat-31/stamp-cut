@@ -119,7 +119,7 @@ export function EditorModal() {
     const canvas = canvasRef.current
     const orig = originalRef.current
     if (!canvas || !orig) return
-    const maxW = Math.min(520, window.innerWidth - 96)
+    const maxW = Math.min(520, window.innerWidth - 48)
     const maxH = Math.min(380, window.innerHeight * 0.42)
     const scale = Math.min(maxW / orig.naturalWidth, maxH / orig.naturalHeight)
     canvas.width = Math.round(orig.naturalWidth * scale)
@@ -333,7 +333,7 @@ export function EditorModal() {
     <Dialog open={!!item} onOpenChange={(open) => !open && setEditingId(null)}>
       <DialogContent
         data-testid="editor-modal"
-        className="max-h-[92vh] overflow-y-auto sm:max-w-3xl"
+        className="top-0 left-0 h-dvh max-h-dvh w-screen max-w-full translate-x-0 translate-y-0 gap-3 overflow-y-auto rounded-none border-0 p-4 sm:top-1/2 sm:left-1/2 sm:h-auto sm:max-h-[92vh] sm:w-full sm:max-w-3xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:gap-4 sm:rounded-lg sm:border sm:p-6"
       >
         <DialogHeader>
           <DialogTitle>編集: {item?.fileName}</DialogTitle>
@@ -507,7 +507,7 @@ export function EditorModal() {
           {selectedText && (
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <Input
-                className="w-40"
+                className="w-full sm:w-40"
                 value={selectedText.text}
                 onChange={(e) => updateSelectedText({ text: e.target.value })}
                 placeholder="テキスト"
@@ -570,11 +570,16 @@ export function EditorModal() {
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setEditingId(null)}>
+        <DialogFooter className="bg-background/95 sticky bottom-0 -mx-4 flex-row justify-end border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:mx-0 sm:border-0 sm:p-0 sm:backdrop-blur-none">
+          <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setEditingId(null)}>
             キャンセル
           </Button>
-          <Button data-testid="editor-save" onClick={onSave} disabled={saving || !ready}>
+          <Button
+            data-testid="editor-save"
+            className="flex-1 sm:flex-none"
+            onClick={onSave}
+            disabled={saving || !ready}
+          >
             {saving ? '保存中…' : '保存'}
           </Button>
         </DialogFooter>
