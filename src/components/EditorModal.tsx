@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { defaultEdits, defaultTransform, type StampEdits, type TextItem } from '../types'
 import { applyMask, createCanvas, ctx2d, urlToImage } from '../lib/imageUtils'
 import { DEFAULT_FONT_ID, FONTS, fontStack, renderStamp } from '../lib/compose'
+import { CUTOUT_MODES, type CutoutMode } from '../lib/maskRefine'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -25,8 +26,9 @@ let textSeq = 0
  * - 書き出しプレビュー上で被写体の拡大・縮小・移動(配置調整)
  */
 export function EditorModal() {
-  const { items, editingId, setEditingId, saveEdits } = useStore()
+  const { items, editingId, setEditingId, saveEdits, setItemMode } = useStore()
   const item = items.find((i) => i.id === editingId)
+  const [modeChanging, setModeChanging] = useState(false)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const previewRef = useRef<HTMLCanvasElement>(null)
@@ -117,7 +119,7 @@ export function EditorModal() {
     const canvas = canvasRef.current
     const orig = originalRef.current
     if (!canvas || !orig) return
-    const maxW = Math.min(520, window.innerWidth - 96)
+    const maxW = Math.min(520, window.innerWidth - 48)
     const maxH = Math.min(380, window.innerHeight * 0.42)
     const scale = Math.min(maxW / orig.naturalWidth, maxH / orig.naturalHeight)
     canvas.width = Math.round(orig.naturalWidth * scale)
@@ -331,11 +333,45 @@ export function EditorModal() {
     <Dialog open={!!item} onOpenChange={(open) => !open && setEditingId(null)}>
       <DialogContent
         data-testid="editor-modal"
-        className="max-h-[92vh] overflow-y-auto sm:max-w-3xl"
+        className="top-0 left-0 h-dvh max-h-dvh w-screen max-w-full translate-x-0 translate-y-0 gap-3 overflow-y-auto rounded-none border-0 p-4 sm:top-1/2 sm:left-1/2 sm:h-auto sm:max-h-[92vh] sm:w-full sm:max-w-3xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:gap-4 sm:rounded-lg sm:border sm:p-6"
       >
         <DialogHeader>
           <DialogTitle>編集: {item?.fileName}</DialogTitle>
         </DialogHeader>
+
+        {/* 背景除去モード */}
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">背景除去:</span>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            value={item?.mode}
+            disabled={modeChanging}
+            onValueChange={async (v) => {
+              if (!v || !item || v === item.mode) return
+              setModeChanging(true)
+              try {
+                await setItemMode(item.id, v as CutoutMode)
+              } finally {
+                setModeChanging(false)
+              }
+            }}
+          >
+            {CUTOUT_MODES.map((m) => (
+              <ToggleGroupItem
+                key={m.id}
+                value={m.id}
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground px-3"
+              >
+                {m.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <span className="text-muted-foreground text-xs">
+            {modeChanging ? '再計算中…' : '切り替えるとブラシ修正はリセットされます'}
+          </span>
+        </div>
 
         {/* ツールバー */}
         <div className="flex flex-wrap items-center gap-3">
@@ -471,7 +507,7 @@ export function EditorModal() {
           {selectedText && (
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <Input
-                className="w-40"
+                className="w-full sm:w-40"
                 value={selectedText.text}
                 onChange={(e) => updateSelectedText({ text: e.target.value })}
                 placeholder="テキスト"
@@ -534,11 +570,16 @@ export function EditorModal() {
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setEditingId(null)}>
+        <DialogFooter className="bg-background/95 sticky bottom-0 -mx-4 flex-row justify-end border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:mx-0 sm:border-0 sm:p-0 sm:backdrop-blur-none">
+          <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setEditingId(null)}>
             キャンセル
           </Button>
-          <Button data-testid="editor-save" onClick={onSave} disabled={saving || !ready}>
+          <Button
+            data-testid="editor-save"
+            className="flex-1 sm:flex-none"
+            onClick={onSave}
+            disabled={saving || !ready}
+          >
             {saving ? '保存中…' : '保存'}
           </Button>
         </DialogFooter>

@@ -47,6 +47,8 @@ export interface StampEdits {
 
 export type StampStatus = 'pending' | 'processing' | 'done' | 'error'
 
+export type { CutoutMode } from './lib/maskRefine'
+
 export interface StampItem {
   id: string
   fileName: string
@@ -54,12 +56,16 @@ export interface StampItem {
   error?: string
   /** 変換済み元画像 (PNG) の object URL。ブラシの「残す」の復元元 */
   originalUrl?: string
+  /** モデル出力そのままのマスクの object URL(モード切替時の再計算元) */
+  rawMaskUrl?: string
   /** マスク画像 (白=残す/黒=消す) の object URL */
   maskUrl?: string
   /** 切り抜き結果 (original × mask) の object URL */
   cutoutUrl?: string
   /** 編集(配置・白フチ・テキスト)を反映した最終レンダリングの object URL(一覧・プレビュー表示用) */
   renderedUrl?: string
+  /** この画像に適用中の背景除去モード */
+  mode: import('./lib/maskRefine').CutoutMode
   edits: StampEdits
 }
 
