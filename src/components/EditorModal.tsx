@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { defaultEdits, defaultTransform, type StampEdits, type TextItem } from '../types'
 import { applyMask, createCanvas, ctx2d, urlToImage } from '../lib/imageUtils'
 import { DEFAULT_FONT_ID, FONTS, fontStack, renderStamp } from '../lib/compose'
+import { CUTOUT_MODES, type CutoutMode } from '../lib/maskRefine'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -25,8 +26,9 @@ let textSeq = 0
  * - 書き出しプレビュー上で被写体の拡大・縮小・移動(配置調整)
  */
 export function EditorModal() {
-  const { items, editingId, setEditingId, saveEdits } = useStore()
+  const { items, editingId, setEditingId, saveEdits, setItemMode } = useStore()
   const item = items.find((i) => i.id === editingId)
+  const [modeChanging, setModeChanging] = useState(false)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const previewRef = useRef<HTMLCanvasElement>(null)
@@ -336,6 +338,40 @@ export function EditorModal() {
         <DialogHeader>
           <DialogTitle>編集: {item?.fileName}</DialogTitle>
         </DialogHeader>
+
+        {/* 背景除去モード */}
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">背景除去:</span>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            value={item?.mode}
+            disabled={modeChanging}
+            onValueChange={async (v) => {
+              if (!v || !item || v === item.mode) return
+              setModeChanging(true)
+              try {
+                await setItemMode(item.id, v as CutoutMode)
+              } finally {
+                setModeChanging(false)
+              }
+            }}
+          >
+            {CUTOUT_MODES.map((m) => (
+              <ToggleGroupItem
+                key={m.id}
+                value={m.id}
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground px-3"
+              >
+                {m.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <span className="text-muted-foreground text-xs">
+            {modeChanging ? '再計算中…' : '切り替えるとブラシ修正はリセットされます'}
+          </span>
+        </div>
 
         {/* ツールバー */}
         <div className="flex flex-wrap items-center gap-3">

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { defaultEdits, SPEC, type StampCount, type StampEdits, type StampItem } from './types'
 import { applyMask, blobToImage, canvasToBlob, createCanvas, ctx2d, extractMask, normalizeUpload, urlToImage } from './lib/imageUtils'
 import { removeBg } from './lib/removeBg'
+import { refineMask, type CutoutMode } from './lib/maskRefine'
 import { renderStamp } from './lib/compose'
 
 /** 一覧・プレビュー表示用の最終レンダリング画像を生成する */
@@ -22,6 +23,11 @@ interface StoreState {
   count: StampCount
   editingId: string | null
   processing: boolean
+  /** 新規アップロードに適用する背景除去モード */
+  cutMode: CutoutMode
+  setCutMode: (mode: CutoutMode) => void
+  /** 処理済み画像のモードを切り替えて再計算する(ブラシ修正はリセットされる) */
+  setItemMode: (id: string, mode: CutoutMode) => Promise<void>
   addFiles: (files: File[]) => void
   removeItem: (id: string) => void
   moveItem: (id: string, dir: -1 | 1) => void
@@ -52,10 +58,17 @@ export const useStore = create<StoreState>((set, get) => {
         // 切り抜き結果を元画像と同サイズに揃え、マスクを抽出しておく
         const img = await blobToImage(cutoutBlob)
         const orig = await urlToImage(originalUrl)
-        const cutout = createCanvas(orig.naturalWidth, orig.naturalHeight)
-        ctx2d(cutout).drawImage(img, 0, 0, cutout.width, cutout.height)
-        const mask = extractMask(cutout)
-        const [cutoutPng, maskPng] = await Promise.all([canvasToBlob(cutout), canvasToBlob(mask)])
+        const modelOut = createCanvas(orig.naturalWidth, orig.naturalHeight)
+        ctx2d(modelOut).drawImage(img, 0, 0, modelOut.width, modelOut.height)
+        const rawMask = extractMask(modelOut)
+        const mode = get().items.find((it) => it.id === id)?.mode ?? get().cutMode
+        const mask = refineMask(rawMask, mode)
+        const cutout = applyMask(orig, mask)
+        const [cutoutPng, maskPng, rawMaskPng] = await Promise.all([
+          canvasToBlob(cutout),
+          canvasToBlob(mask),
+          canvasToBlob(rawMask),
+        ])
         const cutoutUrl = URL.createObjectURL(cutoutPng)
         const item = get().items.find((it) => it.id === id)
         const renderedUrl = await renderPreviewUrl(cutoutUrl, item?.edits ?? defaultEdits())
@@ -65,6 +78,7 @@ export const useStore = create<StoreState>((set, get) => {
           cutoutUrl,
           renderedUrl,
           maskUrl: URL.createObjectURL(maskPng),
+          rawMaskUrl: URL.createObjectURL(rawMaskPng),
         })
         set((s) => ({ mainId: s.mainId ?? id }))
       })
@@ -84,6 +98,29 @@ export const useStore = create<StoreState>((set, get) => {
     count: SPEC.counts[1], // 16
     editingId: null,
     processing: false,
+    cutMode: 'strict',
+
+    setCutMode: (mode) => set({ cutMode: mode }),
+
+    setItemMode: async (id, mode) => {
+      const item = get().items.find((it) => it.id === id)
+      if (!item || item.mode === mode || !item.rawMaskUrl || !item.originalUrl) return
+      const [rawImg, orig] = await Promise.all([
+        urlToImage(item.rawMaskUrl),
+        urlToImage(item.originalUrl),
+      ])
+      const rawMask = createCanvas(rawImg.naturalWidth, rawImg.naturalHeight)
+      ctx2d(rawMask).drawImage(rawImg, 0, 0)
+      const mask = refineMask(rawMask, mode)
+      const cutout = applyMask(orig, mask)
+      const [cutoutPng, maskPng] = await Promise.all([canvasToBlob(cutout), canvasToBlob(mask)])
+      for (const url of [item.cutoutUrl, item.maskUrl, item.renderedUrl]) {
+        if (url) URL.revokeObjectURL(url)
+      }
+      const cutoutUrl = URL.createObjectURL(cutoutPng)
+      const renderedUrl = await renderPreviewUrl(cutoutUrl, item.edits)
+      update(id, { mode, cutoutUrl, maskUrl: URL.createObjectURL(maskPng), renderedUrl })
+    },
 
     addFiles: (files) => {
       const accepted = files.filter(
@@ -93,6 +130,7 @@ export const useStore = create<StoreState>((set, get) => {
         id: newId(),
         fileName: f.name,
         status: 'pending',
+        mode: get().cutMode,
         edits: defaultEdits(),
       }))
       set((s) => ({ items: [...s.items, ...newItems] }))
