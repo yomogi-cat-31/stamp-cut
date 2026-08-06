@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Brush, Eraser, Plus, RotateCcw, Trash2, Type } from 'lucide-react'
+import { Brush, Eraser, Plus, RotateCcw, Trash2, Type, Undo2 } from 'lucide-react'
 import { useStore } from '../store'
 import { defaultEdits, defaultTransform, type StampEdits, type TextItem } from '../types'
 import { applyMask, createCanvas, ctx2d, urlToImage } from '../lib/imageUtils'
@@ -39,6 +39,11 @@ export function EditorModal() {
   const [maskVersion, setMaskVersion] = useState(0)
   const [saving, setSaving] = useState(false)
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null)
+  const [showOriginal, setShowOriginal] = useState(true)
+
+  // ブラシ操作の履歴(ストローク開始時点のマスクのスナップショット)
+  const historyRef = useRef<HTMLCanvasElement[]>([])
+  const [canUndo, setCanUndo] = useState(false)
 
   // オフスクリーン: 元画像とマスク(実寸)
   const originalRef = useRef<HTMLImageElement | null>(null)
@@ -56,6 +61,8 @@ export function EditorModal() {
     setMaskDirty(false)
     setMaskVersion(0)
     setSelectedTextId(null)
+    historyRef.current = []
+    setCanUndo(false)
     if (!item?.originalUrl || !item.maskUrl) return
     let cancelled = false
     ;(async () => {
@@ -86,6 +93,12 @@ export function EditorModal() {
     if (!canvas || !orig || !mask) return
     const ctx = ctx2d(canvas)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (showOriginal) {
+      // 元画像を薄く重ねて、消しすぎ・残しすぎを確認しやすくする
+      ctx.globalAlpha = 0.3
+      ctx.drawImage(orig, 0, 0, canvas.width, canvas.height)
+      ctx.globalAlpha = 1
+    }
     const cutout = applyMask(orig, mask)
     ctx.drawImage(cutout, 0, 0, canvas.width, canvas.height)
     for (const t of edits.texts) {
@@ -111,7 +124,7 @@ export function EditorModal() {
         ctx.setLineDash([])
       }
     }
-  }, [edits.texts, selectedTextId])
+  }, [edits.texts, selectedTextId, showOriginal])
 
   // キャンバス初期化(フィットサイズ)
   useEffect(() => {
@@ -167,6 +180,42 @@ export function EditorModal() {
     }
   }
 
+  const pushHistory = () => {
+    const mask = maskRef.current
+    if (!mask) return
+    const snap = createCanvas(mask.width, mask.height)
+    ctx2d(snap).drawImage(mask, 0, 0)
+    historyRef.current.push(snap)
+    if (historyRef.current.length > 30) historyRef.current.shift()
+    setCanUndo(true)
+  }
+
+  const undo = useCallback(() => {
+    const snap = historyRef.current.pop()
+    const mask = maskRef.current
+    if (!snap || !mask) return
+    const mctx = ctx2d(mask)
+    mctx.clearRect(0, 0, mask.width, mask.height)
+    mctx.drawImage(snap, 0, 0)
+    setCanUndo(historyRef.current.length > 0)
+    setMaskDirty(true)
+    setMaskVersion((v) => v + 1)
+    redraw()
+  }, [redraw])
+
+  // Ctrl/Cmd + Z で戻す
+  useEffect(() => {
+    if (!item) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        undo()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [item, undo])
+
   const applyBrush = (x: number, y: number) => {
     const canvas = canvasRef.current
     const mask = maskRef.current
@@ -219,6 +268,7 @@ export function EditorModal() {
       setSelectedTextId(null)
       return
     }
+    pushHistory()
     dragState.current = { mode: 'brush' }
     applyBrush(x, y)
   }
@@ -394,6 +444,17 @@ export function EditorModal() {
               テキスト
             </ToggleGroupItem>
           </ToggleGroup>
+          <Button
+            data-testid="undo-button"
+            variant="outline"
+            size="sm"
+            onClick={undo}
+            disabled={!canUndo}
+            title="ブラシ操作を戻す (Ctrl+Z)"
+          >
+            <Undo2 />
+            戻す
+          </Button>
           {tool !== 'text' && (
             <Label className="text-muted-foreground w-40 gap-2">
               ブラシ
@@ -406,6 +467,13 @@ export function EditorModal() {
             </Label>
           )}
           <Label className="text-muted-foreground ml-auto gap-1.5">
+            <Checkbox
+              checked={showOriginal}
+              onCheckedChange={(c) => setShowOriginal(c === true)}
+            />
+            元画像を薄く表示
+          </Label>
+          <Label className="text-muted-foreground gap-1.5">
             <Checkbox
               checked={edits.outline}
               onCheckedChange={(c) => setEdits((ed) => ({ ...ed, outline: c === true }))}
@@ -442,8 +510,19 @@ export function EditorModal() {
             )}
           </div>
 
-          {/* 配置調整(書き出しプレビュー) */}
+          {/* 配置調整(書き出しプレビュー)+ 元画像プレビュー */}
           <div className="w-48 shrink-0 space-y-2" data-testid="transform-panel">
+            {item?.originalUrl && (
+              <>
+                <p className="text-xs font-semibold">元画像</p>
+                <img
+                  data-testid="original-preview"
+                  src={item.originalUrl}
+                  alt="元画像"
+                  className="max-h-36 w-full rounded-lg border object-contain"
+                />
+              </>
+            )}
             <p className="text-xs font-semibold">書き出しプレビュー / 配置調整</p>
             <div
               className="checkerboard rounded-lg border"
