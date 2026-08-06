@@ -43,5 +43,8 @@
     "vite": "^8.2.0",
     "vite-plugin-static-copy": "^4.1.1",
     "wrangler": "^4.119.0"
+  },
+  "overrides": {
+    "undici": "^7.29.0"
   }
 }
