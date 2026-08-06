@@ -32,11 +32,27 @@ npm run preview  # 本番ビルドの確認
 - `?nobg` — 背景除去をスキップ(E2E テスト・低速端末での動作確認用)
 - `?model=small` — 小型モデル(isnet_quint8)を使用。既定は `isnet_fp16`
 
-## デプロイ(Cloudflare)
+## デプロイ(Cloudflare Workers 静的アセット・無料枠)
 
-`npm run build` の成果物 `dist/` を Cloudflare Workers の静的アセット(旧 Pages)にそのまま配置する。
-モデルはチャンク分割済み(1 ファイル最大 4MiB、onnxruntime の WASM も 25MiB 以下)のため、
-Cloudflare の 1 ファイル 25MiB 制限には抵触しない。
+初回のみ:
+
+```bash
+npx wrangler login   # ブラウザが開くので Cloudflare アカウントで認可
+```
+
+以降は 1 コマンド:
+
+```bash
+npm run deploy       # build して https://stamp-cut.<subdomain>.workers.dev に公開
+```
+
+- 静的アセット配信のみのため **無料枠で運用でき、リクエスト課金もない**
+- モデルはチャンク分割済み(1 ファイル最大 4MiB、onnxruntime の WASM も 25MiB 以下)のため、
+  Cloudflare の 1 ファイル 25MiB 制限には抵触しない
+- 初回デプロイはモデル一式(約 270MB)のアップロードに数分かかる。2 回目以降は
+  ハッシュ差分のみのアップロードになるため速い
+- 限定公開したい場合は Cloudflare Zero Trust(Access)で `*.workers.dev` の
+  アプリケーションを作り、自分のメールアドレスだけ許可する(無料枠 50 ユーザーまで)
 
 ## 実装メモ
 
